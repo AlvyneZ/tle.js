@@ -1,6 +1,8 @@
 export {
 	clearCache,
 	getCacheSizes,
+	clearAllCache,
+	getAllCacheSizes,
 	getGroundTracks,
 	getGroundTracksSync,
 	getLastAntemeridianCrossingTimeMS,

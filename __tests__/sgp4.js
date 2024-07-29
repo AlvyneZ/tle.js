@@ -1,6 +1,8 @@
 import {
-	getCacheSizes,
 	clearCache,
+	getCacheSizes,
+	clearAllCache,
+	getAllCacheSizes,
 	clearTLEParseCache,
 	getGroundTracks,
 	getGroundTracksSync,
@@ -123,9 +125,10 @@ describe('clearCache', () => {
 			bigBearLatLng.lat,
 			bigBearLatLng.lng
 		);
-		expect(getCacheSizes()).toEqual([3,0,0,0]);
-		clearCache();
-		expect(getCacheSizes()).toEqual([0,0,0,0]);
+		expect(getCacheSizes(tleArr[1].trim())).toEqual([3,0,0]);
+		expect(getAllCacheSizes()).toEqual([1,0,0]);
+		clearAllCache();
+		expect(getAllCacheSizes()).toEqual([0,0,0]);
 	});
 });
 

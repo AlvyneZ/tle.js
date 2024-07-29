@@ -232,14 +232,24 @@ declare module 'tle.js' {
     }
 
     /**
-     * Clears SGP caches to free up memory for long-running apps.
+     * Clears SGP caches for an updated tle to free up memory for long-running apps.
      */
-    export function clearCache(): undefined;
+    export function clearCache(tleLine1: string): undefined;
+
+    /**
+     * Returns the current sizes of SGP caches for a specific tle.
+     */
+    export function getCacheSizes(tleLine1: string): number[];
+
+    /**
+     * Clears all SGP caches to free up memory for long-running apps.
+     */
+    export function clearAllCache(): undefined;
 
     /**
      * Returns the current sizes of SGP caches.
      */
-    export function getCacheSizes(): number[];
+    export function getAllCacheSizes(): number[];
 
     /**
      * (Async) Calculates three orbit tracks for a TLE (previous, current, and next orbits).

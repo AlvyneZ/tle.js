@@ -32,31 +32,45 @@ const _SAT_REC_ERRORS = {
 	6: "Satellite has decayed"
 };
 
-let cachedSatelliteInfo = {};
-let cachedAntemeridianCrossings = {};
-let cachedOrbitTracks = {};
-let cachedGroundTrack = {};
+const cachedSatelliteInfo = {};
+const cachedAntemeridianCrossings = {};
+const cachedOrbitTracks = {};
 const caches = [
 	cachedSatelliteInfo,
 	cachedAntemeridianCrossings,
-	cachedOrbitTracks,
-	cachedGroundTrack
+	cachedOrbitTracks
 ];
 
 /**
- * Returns the current size of SGP caches.
+ * Clears SGP caches for an updated tle to free up memory for long-running apps.
  */
-export function getCacheSizes() {
-	return caches.map(_getObjLength);
+export function clearCache(tleLine1) {
+	caches.forEach((_cache) => {
+		delete _cache[tleLine1];
+	});
 }
 
 /**
- * Clears SGP caches to free up memory for long-running apps.
+ * Returns the current sizes of SGP caches for a specific tle.
  */
-export function clearCache() {
+export function getCacheSizes(tleLine1) {
+	return caches.map((_cache) => (_cache[tleLine1] ? _getObjLength(_cache[tleLine1]) : 0));
+}
+
+/**
+ * Clears all SGP caches to free up memory for long-running apps.
+ */
+export function clearAllCache() {
 	caches.forEach((_cache) => {
 		Object.keys(_cache).forEach(key => delete _cache[key]);
 	});
+}
+
+/**
+ * Returns the current sizes of SGP caches.
+ */
+export function getAllCacheSizes() {
+	return caches.map(_getObjLength);
 }
 
 /**
@@ -123,10 +137,11 @@ export function getSatelliteInfo(
 	const obsHeight = observerHeight || defaultObserverPosition.height;
 
 	// Memoization
-	const cacheKey = `${tle[0]}-${timestamp}-${observerLat}-${observerLng}
+	const tleLine1 = tle[0];
+	const cacheKey = `${timestamp}-${observerLat}-${observerLng}
 -${observerHeight}`;
-	if (cachedSatelliteInfo[cacheKey]) {
-		return cachedSatelliteInfo[cacheKey];
+	if (cachedSatelliteInfo[tleLine1]?.[cacheKey]) {
+		return cachedSatelliteInfo[tleLine1][cacheKey];
 	}
 
 	// Initialize a satellite record
@@ -186,7 +201,10 @@ export function getSatelliteInfo(
 	};
 
 	// Memoization
-	cachedSatelliteInfo[cacheKey] = output;
+	if (!cachedSatelliteInfo[tleLine1]) {
+		cachedSatelliteInfo[tleLine1] = {};
+	}
+	cachedSatelliteInfo[tleLine1][cacheKey] = output;
 
 	return output;
 }
@@ -195,28 +213,28 @@ export function getSatelliteInfo(
  * Determines if the last antemeridian crossing has been cached.  If it has, the time (in ms)
  * is returned, otherwise it returns false.
  */
-export function getCachedLastAntemeridianCrossingTimeMS(tleObj, timeMS) {
+function getCachedLastAntemeridianCrossingTimeMS(tleObj, timeMS) {
 	const { tle } = tleObj;
 
 	const orbitLengthMS = getAverageOrbitTimeMins(tle) * 60 * 1000;
 
-	const tleStr = tle[0].substr(0, 30);
+	const tleLine1 = tle[0];
 
-	const cachedCrossingTimes = cachedAntemeridianCrossings[tleStr];
+	const cachedCrossingTimes = cachedAntemeridianCrossings[tleLine1];
 	if (!cachedCrossingTimes) return false;
 
 	if (cachedCrossingTimes === -1) return cachedCrossingTimes;
 
-	const cachedTime = cachedCrossingTimes.filter(val => {
-		if (typeof val === "object" && val.tle === tle) return -1;
-
+	let cachedTime;
+	cachedCrossingTimes.some(val => {
 		const diff = timeMS - val;
 		const isDiffPositive = diff > 0;
 		const isWithinOrbit = isDiffPositive && diff < orbitLengthMS;
+		if (isWithinOrbit) cachedTime = val;
 		return isWithinOrbit;
 	});
 
-	return cachedTime[0] || false;
+	return cachedTime;
 }
 
 /**
@@ -270,15 +288,15 @@ export function getLastAntemeridianCrossingTimeMS(tle, timeMS) {
 	const couldNotFindCrossing = tries - 1 === maxTries;
 	const crossingTime = couldNotFindCrossing ? -1 : parseInt(curTimeMS, 10);
 
-	const tleStr = tleArr[0];
-	if (!cachedAntemeridianCrossings[tleStr]) {
-		cachedAntemeridianCrossings[tleStr] = [];
-	}
+	const tleLine1 = tleArr[0];
 
 	if (couldNotFindCrossing) {
-		cachedAntemeridianCrossings[tleStr] = -1;
+		cachedAntemeridianCrossings[tleLine1] = -1;
 	} else {
-		cachedAntemeridianCrossings[tleStr].push(crossingTime);
+		if (!cachedAntemeridianCrossings[tleLine1]) {
+			cachedAntemeridianCrossings[tleLine1] = [];
+		}
+		cachedAntemeridianCrossings[tleLine1].push(crossingTime);
 	}
 
 	return crossingTime;
@@ -397,10 +415,11 @@ export async function getOrbitTrack({
 
 	maxTimeMS ??= getAverageOrbitTimeMS(tleArr) * 1.5;
 
+	const tleLine1 = tleArr[0];
 	const startS = (startTimeMS / 1000).toFixed();
-	const cacheKey = `${tleArr[0]}-${startS}-${stepMS}-${isLngLatFormat}`;
-	if (cachedOrbitTracks[cacheKey]) {
-		return cachedOrbitTracks[cacheKey];
+	const cacheKey = `${startS}-${stepMS}-${isLngLatFormat}`;
+	if (cachedOrbitTracks[tleLine1]?.[cacheKey]) {
+		return cachedOrbitTracks[tleLine1][cacheKey];
 	}
 
 	const generator = getNextPosition(
@@ -439,7 +458,10 @@ export async function getOrbitTrack({
 		step++;
 	}
 
-	cachedOrbitTracks[cacheKey] = coords;
+	if (!cachedOrbitTracks[tleLine1]) {
+		cachedOrbitTracks[tleLine1] = {};
+	}
+	cachedOrbitTracks[tleLine1][cacheKey] = coords;
 
 	return coords;
 }
@@ -456,10 +478,11 @@ export function getOrbitTrackSync({
 }) {
 	const { tle: tleArr } = parseTLE(tle);
 
+	const tleLine1 = tleArr[0];
 	const startS = (startTimeMS / 1000).toFixed();
-	const cacheKey = `${tleArr[0]}-${startS}-${stepMS}-${isLngLatFormat}`;
-	if (cachedOrbitTracks[cacheKey]) {
-		return cachedOrbitTracks[cacheKey];
+	const cacheKey = `${startS}-${stepMS}-${isLngLatFormat}`;
+	if (cachedOrbitTracks[tleLine1]?.[cacheKey]) {
+		return cachedOrbitTracks[tleLine1][cacheKey];
 	}
 
 	let isDone = false;
@@ -486,7 +509,10 @@ export function getOrbitTrackSync({
 		curTimeMS += stepMS;
 	}
 
-	cachedOrbitTracks[cacheKey] = coords;
+	if (!cachedOrbitTracks[tleLine1]) {
+		return cachedOrbitTracks[tleLine1] = {};
+	}
+	cachedOrbitTracks[tleLine1][cacheKey] = coords;
 
 	return coords;
 }
