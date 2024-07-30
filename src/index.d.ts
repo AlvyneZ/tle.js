@@ -279,6 +279,14 @@ declare module 'tle.js' {
     export function getLatLngObj(tle: TLE, timestamp?: Timestamp): LatLngObject;
 
     /**
+     * Determines current satellite position, or position at time of timestamp (optional).
+     *
+     * @param {Array|String} rawTLE
+     * @param {Number} rawTimestamp Unix timestamp in milliseconds.
+     */
+    export function getLngLat(rawTLE: TLE, rawTimestamp?: Timestamp): number[];
+
+    /**
      * Determines the satellite's position at the time of the TLE epoch (when the TLE was generated).
      * 
      * @param tle TLE input.
@@ -323,17 +331,14 @@ declare module 'tle.js' {
         timestamp: Timestamp,
         /**
          * (degrees) Ground observer latitude.  Only needed for azimuth, elevation, and range.
-         * @default 36.9613422
          */
         observerLat?: LatitudeDegrees,
         /**
          * (degrees) Ground observer longitude.  Only needed for azimuth, elevation, and range.
-         * @default -122.0308
          */
         observerLng?: LongitudeDegrees,
         /**
          * (m) Ground observer meters above the ellipsoid.  Only needed for azimuth, elevation, and range.
-         * @default 0.37
          */
         observerHeight?: Meters): SatelliteInfoOutput;
 

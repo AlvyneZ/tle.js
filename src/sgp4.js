@@ -32,10 +32,12 @@ const _SAT_REC_ERRORS = {
 	6: "Satellite has decayed"
 };
 
+const cachedSatelliteLocation = {};
 const cachedSatelliteInfo = {};
 const cachedAntemeridianCrossings = {};
 const cachedOrbitTracks = {};
 const caches = [
+	cachedSatelliteLocation,
 	cachedSatelliteInfo,
 	cachedAntemeridianCrossings,
 	cachedOrbitTracks
@@ -118,6 +120,11 @@ export function getSatelliteInfo(
 	observerLng,
 	observerHeight
 ) {
+	if ((observerLat === undefined) ||
+			(observerLng === undefined) || (observerHeight === undefined)) {
+		throw new Error('Observer Location details (lat, lng, height) are all required');
+	}
+
 	const timestamp = rawTimestamp || Date.now();
 
 	const { tle, error: parseError } = parseTLE(rawTLE);
@@ -126,77 +133,36 @@ export function getSatelliteInfo(
 		throw new Error(parseError);
 	}
 
-	const defaultObserverPosition = {
-		lat: 36.9613422,
-		lng: -122.0308,
-		height: 0.37
-	};
-
-	const obsLat = observerLat || defaultObserverPosition.lat;
-	const obsLng = observerLng || defaultObserverPosition.lng;
-	const obsHeight = observerHeight || defaultObserverPosition.height;
-
 	// Memoization
 	const tleLine1 = tle[0];
-	const cacheKey = `${timestamp}-${observerLat}-${observerLng}
--${observerHeight}`;
+	const cacheKey = `${timestamp}-${observerLat}-${observerLng}-${observerHeight}`;
 	if (cachedSatelliteInfo[tleLine1]?.[cacheKey]) {
 		return cachedSatelliteInfo[tleLine1][cacheKey];
 	}
-
-	// Initialize a satellite record
-	const satrec = twoline2satrec(tle[0], tle[1]);
-	if (satrec.error) {
-		throw new Error(
-			_SAT_REC_ERRORS[satrec.error] || _SAT_REC_ERRORS._DEFAULT
-		);
+	const locCacheKey = `${timestamp}`;
+	if (!cachedSatelliteLocation[tleLine1]?.[locCacheKey]) {
+		getLngLat(tle, timestamp);
 	}
-
-	const dateObj = new Date(timestamp);
-
-	// Propagate SGP4.
-	const positionAndVelocity = propagate(satrec, dateObj);
-
-	// The position_velocity result is a key-value pair of ECI coordinates.
-	// These are the base results from which all other coordinates are derived.
-	const positionEci = positionAndVelocity.position;
-	const velocityEci = positionAndVelocity.velocity;
+	const { pos, positionEcf, velocityKmS } = cachedSatelliteLocation[tleLine1][locCacheKey];
 
 	// Set the observer position (in radians).
 	const observerGd = {
-		latitude: _degreesToRadians(obsLat),
-		longitude: _degreesToRadians(obsLng),
-		height: obsHeight
+		latitude: _degreesToRadians(observerLat),
+		longitude: _degreesToRadians(observerLng),
+		height: observerHeight
 	};
 
-	// Get GMST for some coordinate transforms.
-	// http://en.wikipedia.org/wiki/Sidereal_time#Definition
-	const gmst = gstime(dateObj);
-
-	// Get ECF, Geodetic, Look Angles, and Doppler Factor.
-	const positionEcf = eciToEcf(positionEci, gmst);
-	const positionGd = eciToGeodetic(positionEci, gmst);
+	// Get Look Angles, and Doppler Factor.
 	const lookAngles = ecfToLookAngles(observerGd, positionEcf);
-
-	const velocityKmS = Math.sqrt(
-		Math.pow(velocityEci.x, 2) +
-		Math.pow(velocityEci.y, 2) +
-		Math.pow(velocityEci.z, 2)
-	);
 
 	// Azimuth: is simply the compass heading from the observer's position.
 	const { azimuth, elevation, rangeSat } = lookAngles;
 
-	// Geodetic coords are accessed via `longitude`, `latitude`, `height`.
-	const { longitude, latitude, height } = positionGd;
-
 	const output = {
-		lng: degreesLong(longitude),
-		lat: degreesLat(latitude),
+		...pos,
 		elevation: _radiansToDegrees(elevation),
 		azimuth: _radiansToDegrees(azimuth),
 		range: rangeSat,
-		height,
 		velocity: velocityKmS
 	};
 
@@ -309,8 +275,8 @@ export function getLastAntemeridianCrossingTimeMS(tle, timeMS) {
  * @param {Number} optionalTimestamp Unix timestamp in milliseconds.
  */
 export function getLatLngObj(tle, optionalTimestamp = Date.now()) {
-	const { lat, lng } = getSatelliteInfo(tle, optionalTimestamp);
-	return { lat, lng };
+	const loc = getLngLat(tle, optionalTimestamp);
+	return { lat: loc[1], lng: loc[0] };
 }
 
 /**
@@ -320,19 +286,80 @@ export function getLatLngObj(tle, optionalTimestamp = Date.now()) {
  * @param {Number} optionalTimestamp Unix timestamp in milliseconds.
  */
 export function getLatLng(tle, optionalTimestamp = Date.now()) {
-	const { lat, lng } = getSatelliteInfo(tle, optionalTimestamp);
-	return [lat, lng];
+	const loc = getLngLat(tle, optionalTimestamp);
+	return [loc[1], loc[0]];
 }
 
 /**
  * Determines current satellite position, or position at time of timestamp (optional).
  *
- * @param {Array|String} tle
- * @param {Number} optionalTimestamp Unix timestamp in milliseconds.
+ * @param {Array|String} rawTLE
+ * @param {Number} rawTimestamp Unix timestamp in milliseconds.
  */
-export function getLngLat(tle, optionalTimestamp = Date.now()) {
-	const { lat, lng } = getSatelliteInfo(tle, optionalTimestamp);
-	return [lng, lat];
+export function getLngLat(rawTLE, rawTimestamp) {
+	const timestamp = rawTimestamp || Date.now();
+
+	const { tle, error: parseError } = parseTLE(rawTLE);
+
+	if (parseError) {
+		throw new Error(parseError);
+	}
+
+	// Memoization
+	const tleLine1 = tle[0];
+	const cacheKey = `${timestamp}`;
+	if (cachedSatelliteLocation[tleLine1]?.[cacheKey]) {
+		const { pos } = cachedSatelliteLocation[tleLine1][cacheKey];
+		return [pos.lng, pos.lat];
+	}
+
+	// Initialize a satellite record
+	const satrec = twoline2satrec(tle[0], tle[1]);
+	if (satrec.error) {
+		throw new Error(
+			_SAT_REC_ERRORS[satrec.error] || _SAT_REC_ERRORS._DEFAULT
+		);
+	}
+
+	const dateObj = new Date(timestamp);
+
+	// Propagate SGP4.
+	const positionAndVelocity = propagate(satrec, dateObj);
+
+	// The position_velocity result is a key-value pair of ECI coordinates.
+	// These are the base results from which all other coordinates are derived.
+	const positionEci = positionAndVelocity.position;
+	const velocityEci = positionAndVelocity.velocity;
+
+	const velocityKmS = Math.sqrt(
+		Math.pow(velocityEci.x, 2) +
+		Math.pow(velocityEci.y, 2) +
+		Math.pow(velocityEci.z, 2)
+	);
+
+	// Get GMST for some coordinate transforms.
+	// http://en.wikipedia.org/wiki/Sidereal_time#Definition
+	const gmst = gstime(dateObj);
+
+	// Get Geodetic.
+	const positionGd = eciToGeodetic(positionEci, gmst);
+	const positionEcf = eciToEcf(positionEci, gmst);
+
+	// Geodetic coords are accessed via `longitude`, `latitude`, `height`.
+	const { longitude, latitude, height } = positionGd;
+	const pos = {
+		lng: degreesLong(longitude),
+		lat: degreesLat(latitude),
+		height
+	};
+
+	// Memoization
+	if (!cachedSatelliteLocation[tleLine1]) {
+		cachedSatelliteLocation[tleLine1] = {};
+	}
+	cachedSatelliteLocation[tleLine1][cacheKey] = { pos, positionEcf, velocityKmS };
+
+	return [pos.lng, pos.lat];
 }
 
 /**
@@ -353,6 +380,11 @@ export function getVisibleSatellites({
 	elevationThreshold = 0,
 	timestampMS = Date.now()
 }) {
+	if ((observerLat === undefined) ||
+			(observerLng === undefined) || (observerHeight === undefined)) {
+		throw new Error('Observer Location details (lat, lng, height) are all required');
+	}
+
 	return tles.reduce((visibleSats, tleArr) => {
 		let info;
 		try {
@@ -370,9 +402,7 @@ export function getVisibleSatellites({
 			return visibleSats;
 		}
 
-		const { elevation, velocity, range } = info;
-
-		return elevation >= elevationThreshold
+		return info.elevation >= elevationThreshold
 			? visibleSats.concat({ tleArr, info })
 			: visibleSats;
 	}, []);
@@ -473,10 +503,12 @@ export function getOrbitTrackSync({
 	tle,
 	startTimeMS = Date.now(),
 	stepMS = 1000,
-	maxTimeMS = 6000000,
+	maxTimeMS,
 	isLngLatFormat = true
 }) {
 	const { tle: tleArr } = parseTLE(tle);
+
+	maxTimeMS ??= getAverageOrbitTimeMS(tleArr) * 1.5;
 
 	const tleLine1 = tleArr[0];
 	const startS = (startTimeMS / 1000).toFixed();
@@ -510,7 +542,7 @@ export function getOrbitTrackSync({
 	}
 
 	if (!cachedOrbitTracks[tleLine1]) {
-		return cachedOrbitTracks[tleLine1] = {};
+		cachedOrbitTracks[tleLine1] = {};
 	}
 	cachedOrbitTracks[tleLine1][cacheKey] = coords;
 

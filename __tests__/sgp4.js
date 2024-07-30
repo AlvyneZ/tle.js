@@ -44,13 +44,15 @@ describe("getSatelliteInfo", () => {
 		const timestamp = 1501039265000;
 		const bigBearLatLng = {
 			lat: 34.243889,
-			lng: -116.911389
+			lng: -116.911389,
+			height: 0.37
 		};
 		const result = getSatelliteInfo(
 			tleStr,
 			timestamp,
 			bigBearLatLng.lat,
-			bigBearLatLng.lng
+			bigBearLatLng.lng,
+			bigBearLatLng.height
 		);
 		expect(result.lat).toBeCloseTo(34.43928468167498, 4);
 		expect(result.lng).toBeCloseTo(-117.47561026844932, 4);
@@ -66,13 +68,15 @@ describe("getSatelliteInfo", () => {
 			const timestamp = 1501039268000;
 			const bigBearLatLng = {
 				lat: 34.243889,
-				lng: -116.911389
+				lng: -116.911389,
+				height: 0.37
 			};
 			getSatelliteInfo(
 				tleStr,
 				timestamp,
 				bigBearLatLng.lat,
-				bigBearLatLng.lng
+				bigBearLatLng.lng,
+				bigBearLatLng.height
 			);
 		};
 
@@ -112,29 +116,31 @@ describe("getLatLngObj", () => {
 	});
 });
 
-describe('clearCache', () => {
+describe('clearAllCache', () => {
 	test('clears the cache', () => {
-		const timestamp = 1501039268000;
+		const timestamp = 1501039262000;
 		const bigBearLatLng = {
 			lat: 34.243889,
-			lng: -116.911389
+			lng: -116.911389,
+			height: 0.37
 		};
 		getSatelliteInfo(
 			tleStr,
 			timestamp,
 			bigBearLatLng.lat,
-			bigBearLatLng.lng
+			bigBearLatLng.lng,
+			bigBearLatLng.height
 		);
-		expect(getCacheSizes(tleArr[1].trim())).toEqual([3,0,0]);
-		expect(getAllCacheSizes()).toEqual([1,0,0]);
+		expect(getCacheSizes(tleArr[1].trim())).toEqual([3,3,0,0]);
+		expect(getAllCacheSizes()).toEqual([1,1,0,0]);
 		clearAllCache();
-		expect(getAllCacheSizes()).toEqual([0,0,0]);
+		expect(getAllCacheSizes()).toEqual([0,0,0,0]);
 	});
 });
 
 describe("getOrbitTrack", () => {
 	beforeEach(() => {
-		clearCache();
+		clearAllCache();
 		clearTLEParseCache();
 	});
 
@@ -167,7 +173,7 @@ describe("getOrbitTrack", () => {
 
 describe("getOrbitTrackSync", () => {
 	beforeEach(() => {
-		clearCache();
+		clearAllCache();
 		clearTLEParseCache();
 	});
 
@@ -200,7 +206,7 @@ describe("getOrbitTrackSync", () => {
 
 describe("getGroundTracks", () => {
 	beforeEach(() => {
-		clearCache();
+		clearAllCache();
 		clearTLEParseCache();
 	});
 
@@ -253,7 +259,7 @@ describe("getGroundTracks", () => {
 
 describe("getGroundTracksSync", () => {
 	beforeEach(() => {
-		clearCache();
+		clearAllCache();
 		clearTLEParseCache();
 	});
 
@@ -362,7 +368,7 @@ describe("problematic TLES (geosync, decayed)", () => {
 
 describe("getVisibleSatellites", () => {
 	beforeEach(() => {
-		clearCache();
+		clearAllCache();
 		clearTLEParseCache();
 	});
 
@@ -403,6 +409,7 @@ describe("getVisibleSatellites", () => {
 		const secondRunTimeNS = nsToMS(process.hrtime()) - timeStart;
 
 		expect(firstRunTimeNS).toBeGreaterThan(secondRunTimeNS);
+		expect(uniqTLES.length).toEqual(9);
 	});
 
 	test("1", () => {
