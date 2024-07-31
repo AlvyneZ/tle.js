@@ -12,7 +12,8 @@ export {
 	getOrbitTrackSync,
 	getSatBearing,
 	getSatelliteInfo,
-	getVisibleSatellites
+	getVisibleSatellites,
+	getFuturePassesSync
 } from "./sgp4";
 export {
 	getBstarDrag,

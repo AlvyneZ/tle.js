@@ -232,6 +232,61 @@ declare module 'tle.js' {
     }
 
     /**
+     * Input for getFuturePassesSync().
+     */
+    export interface FuturePassesSyncInput {
+        /**
+         * TLE input.
+         */
+        tle: TLE,
+        /**
+         * Time to begin searching for passes from.
+         * @default Current time.
+         */
+        startTimeMS?: Timestamp,
+        /**
+         * Time tolerance of the pass events (rise, set and culmination).
+         * @default 10
+         */
+        toleranceMS?: Timestamp,
+        /**
+         * Minimum satellite elevation for a valid pass.
+         * @default 0
+         */
+        elevationThreshold?: Number,
+        /**
+         * Number of days in the future to look
+         * @default 1
+         */
+        daysCount?: Number
+        /**
+         * (degrees) Ground observer latitude.
+         */
+        observerLat: LatitudeDegrees,
+        /**
+         * (degrees) Ground observer longitude.
+         */
+        observerLng: LongitudeDegrees,
+        /**
+         * (km) Ground observer elevation.
+         * @default 0
+         */
+        observerHeight: Kilometers,
+    }
+
+    /**
+     * Output for getFuturePassesSync().
+     */
+    export interface FuturePassOutput {
+        /** (milliseconds) The time the satellite will rise above the horizon. */
+        rise: Timestamp,
+        /** (milliseconds) The time the satellite will culminate at max elevation. */
+        culmination: Timestamp,
+        /** (milliseconds) The time the satellite will set below the horizon. */
+        stop: Timestamp,
+    }
+
+    /**
      * Clears SGP caches for an updated tle to free up memory for long-running apps.
      */
     export function clearCache(tleLine1: string): undefined;
@@ -346,6 +401,17 @@ declare module 'tle.js' {
      * Determines which satellites are currently visible, assuming a completely flat horizon.
      */
     export function getVisibleSatellites(input: VisibleSatellitesInput): SatelliteInfoOutput[];
+
+    /**
+     * Calculates the future passes of a satellite over a given location
+     * Note: if multiple culminations exist, only the first will be returned
+     * 
+     * @param {FuturePassesSyncInput} input { tle, startTimeMS, toleranceMS,
+     *  elevationThreshold, daysCount, observerLat, observerLng, observerHeight }
+     * @returns azimuth of rise, azimuth of set, elevation of culmination and timestamps
+     *  of all three 
+     */
+    export function getFuturePassesSync(input: FuturePassesSyncInput): FuturePassOutput[];
 
     /**
      * BSTAR drag term. This estimates the effects of atmospheric drag on the satellite's motion.

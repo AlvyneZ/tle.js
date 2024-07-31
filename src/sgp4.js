@@ -19,7 +19,8 @@ import {
 	_degreesToRadians,
 	_radiansToDegrees,
 	_crossesAntemeridian,
-	_getObjLength
+	_getObjLength,
+	_minimizeSearch
 } from "./utils";
 
 const _SAT_REC_ERRORS = {
@@ -36,11 +37,13 @@ const cachedSatelliteLocation = {};
 const cachedSatelliteInfo = {};
 const cachedAntemeridianCrossings = {};
 const cachedOrbitTracks = {};
+const cachedFuturePass = {};
 const caches = [
 	cachedSatelliteLocation,
 	cachedSatelliteInfo,
 	cachedAntemeridianCrossings,
-	cachedOrbitTracks
+	cachedOrbitTracks,
+	cachedFuturePass
 ];
 
 /**
@@ -774,4 +777,116 @@ export function getSatBearing(tle, timeMS = Date.now()) {
 		degrees,
 		compass: `${NS}${EW}`
 	};
+}
+
+/**
+ * Calculates the future passes of a satellite over a given location
+ * Note: if multiple culminations exist, only the first will be returned
+ * 
+ * @param {Array|String} tle 
+ * @param {Number} startTimeMS 
+ * @param {Number} toleranceMS 
+ * @param {Number} elevationThreshold 
+ * @param {Number} daysCount 
+ * @param {Number} observerLat 
+ * @param {Number} observerLng 
+ * @param {Number} observerHeight 
+ * @returns azimuth of rise, azimuth of set, elevation of culmination and timestamps
+ *  of all three 
+ */
+export function getFuturePassesSync({
+	tle,
+	startTimeMS = Date.now(),
+	toleranceMS = 10,
+	elevationThreshold = 0,
+	daysCount = 1,
+	observerLat,
+	observerLng,
+	observerHeight
+}) {
+	const { tle: tleArr } = parseTLE(tle);
+	let curTimeMS = startTimeMS;
+	const maxTimeMS = startTimeMS + (daysCount * _MS_IN_A_DAY);
+
+	const tleLine1 = tleArr[0];
+	const cacheKey = 
+		`${observerLat}-${observerLng}-${observerHeight}-${toleranceMS}-${elevationThreshold}`;
+
+	// Initial steps to find the bounds of the maxima of the elevation
+	//  will be 10th of the average orbit time (TODO: Optimize)
+	const initialStepMS = getAverageOrbitTimeMS(tleArr) / 10;
+
+	// To calculate minima (elvCalculator), maxima (negElvCalculator) and
+	//  threshold crossings (crossElvCalculator)
+	const elvCalculator = (timestampMS) => {
+		const { elevation } = getSatelliteInfo(tleArr, timestampMS,
+			observerLat, observerLng, observerHeight
+		);
+		return elevation ;
+	};
+	const negElvCalculator = (timestampMS) => -elvCalculator(timestampMS);
+	const crossElvCalculator = (timestampMS) => 
+		Math.abs(elvCalculator(timestampMS) - elevationThreshold);
+
+	// Valid passes
+	let passes = [];
+
+	let riseTimeMS, peakTimeMS, setTimeMS, pass;
+	while (true) {
+		pass = cachedFuturePass[tleLine1]?.[cacheKey]?.find((val) => {
+			return ((curTimeMS < val.end) && (curTimeMS >= val.start));
+		})?.pass;
+
+		if (!pass) {
+			peakTimeMS = curTimeMS;
+			do {
+				// Search for minimum first
+				peakTimeMS = _minimizeSearch(elvCalculator, {
+					lowerBound: peakTimeMS,
+					tolerance: (initialStepMS / 10),
+					initialIncrement: initialStepMS,
+				});
+				//Search for maximum
+				peakTimeMS = _minimizeSearch(negElvCalculator, {
+					lowerBound: peakTimeMS,
+					tolerance: toleranceMS,
+					initialIncrement: initialStepMS,
+				});
+			} while (elvCalculator(peakTimeMS) < elevationThreshold);
+
+			riseTimeMS = _minimizeSearch(crossElvCalculator, {
+				lowerBound: peakTimeMS,
+				tolerance: toleranceMS,
+				initialIncrement: -(initialStepMS / 10),
+			});
+			setTimeMS = _minimizeSearch(crossElvCalculator, {
+				lowerBound: peakTimeMS,
+				tolerance: toleranceMS,
+				initialIncrement: (initialStepMS / 10),
+			});
+
+			pass = {
+				rise: riseTimeMS,
+				culmination: peakTimeMS,
+				set: setTimeMS
+			};
+			if (!cachedFuturePass[tleLine1]) {
+				cachedFuturePass[tleLine1] = {};
+			}
+			if (!cachedFuturePass[tleLine1][cacheKey]) {
+				cachedFuturePass[tleLine1][cacheKey] = [];
+			}
+			cachedFuturePass[tleLine1][cacheKey].push({
+				pass, start: curTimeMS, end: setTimeMS
+			});
+		}
+
+		// Ignore if outside given days
+		if (pass.rise > maxTimeMS) break;
+
+		passes.push(pass);
+		curTimeMS = pass.set;
+	}
+
+	return passes;
 }

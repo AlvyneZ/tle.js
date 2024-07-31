@@ -183,3 +183,184 @@ export function getFromTLE(parsedTLE, lineNumber, definition) {
  * @param {Object} obj
  */
 export const _getObjLength = obj => Object.keys(obj).length;
+
+/**
+ * Function from minimize-golden-section-1d
+ * https://www.npmjs.com/package/minimize-golden-section-1d?activeTab=readme
+ * 
+ * Finds the input bounds that enclose a minimum of a function
+ * 
+ * Note: exponential increase in dx has been commented out (Necessary for
+ *  application in TLE pass prediction in order to avoid missing passes)
+ */
+function bracketMinimum (bounds, f, x0, dx, xMin, xMax, maxIter) {
+	// If either size is unbounded (=infinite), Expand the guess
+	// range until we either bracket a minimum or until we reach the bounds:
+	let fU, fL, fMin, xL, xU, bounded;
+	//let n = 1;
+	xL = x0;
+	xU = x0;
+	fMin = fL = fU = f(x0);
+	while (!bounded && isFinite(dx) && !isNaN(dx)) {
+	    //++n;
+	    bounded = true;
+  
+	  	if (fL <= fMin) {
+			fMin = fL;
+			xL = Math.max(xMin, xL - dx);
+			fL = f(xL);
+			bounded = false;
+	  	}
+	  	if (fU <= fMin) {
+			fMin = fU;
+			xU = Math.min(xMax, xU + dx);
+			fU = f(xU);
+			bounded = false;
+		}
+  
+		// Track the smallest value seen so far:
+		fMin = Math.min(fMin, fL, fU);
+	
+		// If either of these is the case, then the function appears
+		// to be minimized against one of the bounds, so although we
+		// haven't bracketed a minimum, we'll considere the procedure
+		// complete because we appear to have bracketed a minimum
+		// against a bound:
+		if ((fL === fMin && xL === xMin) || (fU === fMin && xU === xMax)) {
+			bounded = true;
+		}
+	
+		// Increase the increment at a very quickly increasing rate to account
+		// for the fact that we have *no* idea what floating point magnitude is
+		// desirable. In order to avoid this, you should really provide *any
+		// reasonable bounds at all* for the variables.
+		//dx *= n < 4 ? 2 : Math.exp(n * 0.5);
+	
+		if (!isFinite(dx)) {
+			bounds[0] = -Infinity;
+			bounds[1] = Infinity;
+			return bounds;
+		}
+	}
+  
+	bounds[0] = xL;
+	bounds[1] = xU;
+	return bounds;
+}
+
+/**
+ * Function from minimize-golden-section-1d
+ * https://www.npmjs.com/package/minimize-golden-section-1d?activeTab=readme
+ * 
+ * Given bounds enclosing a minimum, this function converges on the minimum
+ *  using the golden-section-search
+ */
+const PHI_RATIO = 2 / (1 + Math.sqrt(5));
+function goldenSectionMinimize (f, xL, xU, tol, maxIterations, status) {
+	let xF, fF;
+	let iteration = 0;
+	let x1 = xU - PHI_RATIO * (xU - xL);
+	let x2 = xL + PHI_RATIO * (xU - xL);
+	// Initial bounds:
+	let f1 = f(x1);
+	let f2 = f(x2);
+  
+	// Store these values so that we can return these if they're better.
+	// This happens when the minimization falls *approaches* but never
+	// actually reaches one of the bounds
+	const f10 = f(xL);
+	const f20 = f(xU);
+	const xL0 = xL;
+	const xU0 = xU;
+  
+	// Simple, robust golden section minimization:
+	while (++iteration < maxIterations && Math.abs(xU - xL) > tol) {
+		if (f2 > f1) {
+			xU = x2;
+			x2 = x1;
+			f2 = f1;
+			x1 = xU - PHI_RATIO * (xU - xL);
+			f1 = f(x1);
+		} else {
+			xL = x1;
+			x1 = x2;
+			f1 = f2;
+			x2 = xL + PHI_RATIO * (xU - xL);
+			f2 = f(x2);
+		}
+	}
+  
+	xF = 0.5 * (xU + xL);
+	fF = 0.5 * (f1 + f2);
+  
+	if (status) {
+		status.iterations = iteration;
+		status.argmin = xF;
+		status.minimum = fF;
+		status.converged = true;
+	}
+  
+	if (isNaN(f2) || isNaN(f1) || iteration === maxIterations) {
+		if (status) {
+			status.converged = false;
+		}
+		return NaN;
+	}
+  
+	if (f10 < fF) {
+	  	return xL0;
+	} else if (f20 < fF) {
+	  	return xU0;
+	} else {
+	  	return xF;
+	}
+}
+
+/**
+ * Function from minimize-golden-section-1d
+ * https://www.npmjs.com/package/minimize-golden-section-1d?activeTab=readme
+ * 
+ * Searches for the next minimum of a function
+ */
+export function _minimizeSearch (f, options, status) {
+	options = options || {};
+	const bounds = [0, 0];
+	let x0;
+	const tolerance = options.tolerance === undefined ? 1e-8 : options.tolerance;
+	const dx = options.initialIncrement === undefined ? 1 : options.initialIncrement;
+	const xMin = options.lowerBound === undefined ? -Infinity : options.lowerBound;
+	const xMax = options.upperBound === undefined ? Infinity : options.upperBound;
+	const maxIterations = options.maxIterations === undefined ? 100 : options.maxIterations;
+  
+	if (status) {
+		status.iterations = 0;
+		status.argmin = NaN;
+		status.minimum = Infinity;
+		status.converged = false;
+	}
+  
+	if (isFinite(xMax) && isFinite(xMin)) {
+		bounds[0] = xMin;
+		bounds[1] = xMax;
+	} else {
+		// Construct the best guess we can:
+		if (options.guess === undefined) {
+			if (xMin > -Infinity) {
+			x0 = xMax < Infinity ? 0.5 * (xMin + xMax) : xMin;
+			} else {
+			x0 = xMax < Infinity ? xMax : 0;
+			}
+		} else {
+			x0 = options.guess;
+		}
+	
+		bracketMinimum(bounds, f, x0, dx, xMin, xMax, maxIterations);
+	
+		if (isNaN(bounds[0]) || isNaN(bounds[1])) {
+			return NaN;
+		}
+	}
+  
+	return goldenSectionMinimize(f, bounds[0], bounds[1], tolerance, maxIterations, status);
+};
+  
