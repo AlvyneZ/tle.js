@@ -236,6 +236,19 @@ declare module 'tle.js' {
      */
     export interface FuturePassesSyncInput {
         /**
+         * (degrees) Ground observer latitude.
+         */
+        observerLat: LatitudeDegrees,
+        /**
+         * (degrees) Ground observer longitude.
+         */
+        observerLng: LongitudeDegrees,
+        /**
+         * (km) Ground observer elevation.
+         * @default 0
+         */
+        observerHeight: Kilometers,
+        /**
          * TLE input.
          */
         tle: TLE,
@@ -258,20 +271,12 @@ declare module 'tle.js' {
          * Number of days in the future to look
          * @default 1
          */
-        daysCount?: Number
+        daysCount?: Number,
         /**
-         * (degrees) Ground observer latitude.
+         * Maximum number of passes that the function should return
+         * @default Infinity
          */
-        observerLat: LatitudeDegrees,
-        /**
-         * (degrees) Ground observer longitude.
-         */
-        observerLng: LongitudeDegrees,
-        /**
-         * (km) Ground observer elevation.
-         * @default 0
-         */
-        observerHeight: Kilometers,
+        maxPassCount?: Number
     }
 
     /**
@@ -406,8 +411,8 @@ declare module 'tle.js' {
      * Calculates the future passes of a satellite over a given location
      * Note: if multiple culminations exist, only the first will be returned
      * 
-     * @param {FuturePassesSyncInput} input { tle, startTimeMS, toleranceMS,
-     *  elevationThreshold, daysCount, observerLat, observerLng, observerHeight }
+     * @param {FuturePassesSyncInput} input { observerLat, observerLng, observerHeight,
+     *  tle, startTimeMS, toleranceMS, elevationThreshold, daysCount, maxPassCount }
      * @returns azimuth of rise, azimuth of set, elevation of culmination and timestamps
      *  of all three 
      */

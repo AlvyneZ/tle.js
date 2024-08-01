@@ -783,26 +783,28 @@ export function getSatBearing(tle, timeMS = Date.now()) {
  * Calculates the future passes of a satellite over a given location
  * Note: if multiple culminations exist, only the first will be returned
  * 
+ * @param {Number} observerLat 
+ * @param {Number} observerLng 
+ * @param {Number} observerHeight 
  * @param {Array|String} tle 
  * @param {Number} startTimeMS 
  * @param {Number} toleranceMS 
  * @param {Number} elevationThreshold 
  * @param {Number} daysCount 
- * @param {Number} observerLat 
- * @param {Number} observerLng 
- * @param {Number} observerHeight 
+ * @param {Number} maxPassCount 
  * @returns azimuth of rise, azimuth of set, elevation of culmination and timestamps
  *  of all three 
  */
 export function getFuturePassesSync({
-	tle,
-	startTimeMS = Date.now(),
-	toleranceMS = 10,
-	elevationThreshold = 0,
-	daysCount = 1,
 	observerLat,
 	observerLng,
-	observerHeight
+	observerHeight = 0,
+	tle,
+	startTimeMS = Date.now(),
+	toleranceMS = 1,
+	elevationThreshold = 0,
+	daysCount = 1,
+	maxPassCount = Infinity
 }) {
 	const { tle: tleArr } = parseTLE(tle);
 	let curTimeMS = startTimeMS;
@@ -814,7 +816,8 @@ export function getFuturePassesSync({
 
 	// Initial steps to find the bounds of the maxima of the elevation
 	//  will be 10th of the average orbit time (TODO: Optimize)
-	const initialStepMS = getAverageOrbitTimeMS(tleArr) / 10;
+	const avOrbitTimeMS = getAverageOrbitTimeMS(tleArr);
+	const initialStepMS = avOrbitTimeMS / 10;
 
 	// To calculate minima (elvCalculator), maxima (negElvCalculator) and
 	//  threshold crossings (crossElvCalculator)
@@ -832,7 +835,7 @@ export function getFuturePassesSync({
 	let passes = [];
 
 	let riseTimeMS, peakTimeMS, setTimeMS, pass;
-	while (true) {
+	while (passes.length < maxPassCount) {
 		pass = cachedFuturePass[tleLine1]?.[cacheKey]?.find((val) => {
 			return ((curTimeMS < val.end) && (curTimeMS >= val.start));
 		})?.pass;
@@ -843,7 +846,7 @@ export function getFuturePassesSync({
 				// Search for minimum first
 				peakTimeMS = _minimizeSearch(elvCalculator, {
 					lowerBound: peakTimeMS,
-					tolerance: (initialStepMS / 10),
+					tolerance: initialStepMS,
 					initialIncrement: initialStepMS,
 				});
 				//Search for maximum
@@ -866,9 +869,9 @@ export function getFuturePassesSync({
 			});
 
 			pass = {
-				rise: riseTimeMS,
-				culmination: peakTimeMS,
-				set: setTimeMS
+				rise: Number(riseTimeMS.toFixed(1)),
+				culmination: Number(peakTimeMS.toFixed(1)),
+				set: Number(setTimeMS.toFixed(1))
 			};
 			if (!cachedFuturePass[tleLine1]) {
 				cachedFuturePass[tleLine1] = {};
@@ -877,14 +880,14 @@ export function getFuturePassesSync({
 				cachedFuturePass[tleLine1][cacheKey] = [];
 			}
 			cachedFuturePass[tleLine1][cacheKey].push({
-				pass, start: curTimeMS, end: setTimeMS
+				pass, start: curTimeMS, end: pass.set
 			});
 		}
 
 		// Ignore if outside given days
 		if (pass.rise > maxTimeMS) break;
 
-		passes.push(pass);
+		passes.push({ ...pass });
 		curTimeMS = pass.set;
 	}
 
