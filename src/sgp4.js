@@ -869,9 +869,9 @@ export function getFuturePassesSync({
 			});
 
 			pass = {
-				rise: Number(riseTimeMS.toFixed(1)),
-				culmination: Number(peakTimeMS.toFixed(1)),
-				set: Number(setTimeMS.toFixed(1))
+				rise: Number(riseTimeMS.toFixed(0)),
+				culmination: Number(peakTimeMS.toFixed(0)),
+				set: Number(setTimeMS.toFixed(0))
 			};
 			if (!cachedFuturePass[tleLine1]) {
 				cachedFuturePass[tleLine1] = {};

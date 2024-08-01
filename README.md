@@ -235,6 +235,47 @@ const allVisible = getVisibleSatellites({
 ]
 ```
 
+## `getFuturePassesSync(options)`
+
+Predicts the moments in future when a satellite will be visible passing over a given location. The minimum elevation may be specified in the case of a ground station with limited horizon visibility.
+
+```js
+import { getFuturePassesSync } from 'tle.js';
+
+const passes = getFuturePassesSync({
+  observerLat: 34.439283990227125,
+  observerLng: -117.47561122364522,
+  observerHeight: 0,
+  tle: tleStr,
+
+  // Relative time to start predictions from (default: now).  If it is within a pass the pass is not guaranteed to be returned in the list
+  startTimeMS: 1502342329860,
+
+  // Resolution of convergence onto a given time.  Increasing this will slighlty increase performance (default: 1)
+  toleranceMS: 10,
+
+  // Returns passes that eclipse above this elevation (default: 0)
+  elevationThreshold: 10,
+
+  // Restricts how many days into the future to predict (default: 1)
+  daysCount: 2,
+
+  // Restricts how many passes to calculate (default: Infinity)
+  maxPassCount: 20,
+});
+
+// passes contents
+[
+  // pass event timestamps
+  {
+    rise: 1502394515733,
+    culmination: 1502394584407,
+    set: 1502394653117
+  },
+  // etc...
+];
+```
+
 ## Basic TLE getters
 
 In addition to the powerful functions above, there are also helpful functions for getting

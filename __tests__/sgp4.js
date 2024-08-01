@@ -11,6 +11,7 @@ import {
 	getOrbitTrackSync,
 	getSatelliteInfo,
 	getVisibleSatellites,
+	getFuturePassesSync,
 	getLastAntemeridianCrossingTimeMS
 } from "../src";
 import fs from "fs";
@@ -288,6 +289,83 @@ describe("getGroundTracksSync", () => {
 		expect(result[1][0][1]).toBeCloseTo(85.06215);
 		expect(result[2][0][0]).toBeCloseTo(-179.89417);
 		expect(result[2][0][1]).toBeCloseTo(84.63849);
+	});
+});
+
+describe("getFuturePassesSync", () => {
+	beforeEach(() => {
+		clearAllCache();
+		clearTLEParseCache();
+	});
+
+	test("memoizes", () => {
+		const timeStart1 = nsToMS(process.hrtime());
+		getFuturePassesSync({
+			observerLat: 34.439283990227125,
+			observerLng: -117.47561122364522,
+			observerHeight: 0,
+			tle: tleArr,
+			elevationThreshold: 10,
+			startTimeMS: 1502342329860,
+			toleranceMS: 10
+		});
+		const firstRunTimeNS = nsToMS(process.hrtime()) - timeStart1;
+
+		const timeStart2 = nsToMS(process.hrtime());
+		getFuturePassesSync({
+			observerLat: 34.439283990227125,
+			observerLng: -117.47561122364522,
+			observerHeight: 0,
+			tle: tleArr,
+			elevationThreshold: 10,
+			startTimeMS: 1502342329860,
+			toleranceMS: 10
+		});
+		const secondRunTimeNS = nsToMS(process.hrtime()) - timeStart2;
+
+		expect(firstRunTimeNS).toBeGreaterThan(10 * secondRunTimeNS);
+	});
+
+	test("1", () => {
+		const passes = getFuturePassesSync({
+			observerLat: 34.439283990227125,
+			observerLng: -117.47561122364522,
+			observerHeight: 0,
+			tle: tleArr,
+			startTimeMS: 1502342329860,
+		});
+		expect(passes.length).toBe(7);
+
+		expect(passes[0].rise).toBe(1502346045719);
+		expect(passes[0].culmination).toBe(1502346285673);
+		expect(passes[0].set).toBe(1502346525093);
+		expect(passes[6].culmination).toBe(1502423779751);
+	});
+
+	test("2", async () => {
+		const timestamp = 1620583838732;
+		const result = await getGroundTracksSync({
+			tle: proxima2,
+			optionalTimeMS: timestamp
+		});
+		const passes = getFuturePassesSync({
+			observerLat: 34.439283990227125,
+			observerLng: -117.47561122364522,
+			observerHeight: 0,
+			tle: tleArr,
+			elevationThreshold: 10,
+			startTimeMS: 1620583838732,
+			toleranceMS: 0.5,
+			daysCount: 3
+		});
+		expect(passes.length).toBe(12);
+
+		expect(passes[0].rise).toBe(1620609516531);
+		expect(passes[0].culmination).toBe(1620609620985);
+		expect(passes[0].set).toBe(1620609725600);
+		expect(passes[3].culmination).toBe(1620644465976);
+		expect(passes[7].culmination).toBe(1620727426541);
+		expect(passes[11].culmination).toBe(1620810380099);
 	});
 });
 
