@@ -131,10 +131,10 @@ describe('clearAllCache', () => {
 			bigBearLatLng.lng,
 			bigBearLatLng.height
 		);
-		expect(getCacheSizes(tleArr[1].trim())).toEqual([3,3,0,0]);
-		expect(getAllCacheSizes()).toEqual([1,1,0,0]);
+		expect(getCacheSizes(tleArr[1].trim())).toEqual([3,3,0,0,0]);
+		expect(getAllCacheSizes()).toEqual([1,1,0,0,0]);
 		clearAllCache();
-		expect(getAllCacheSizes()).toEqual([0,0,0,0]);
+		expect(getAllCacheSizes()).toEqual([0,0,0,0,0]);
 	});
 });
 
