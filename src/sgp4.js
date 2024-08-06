@@ -860,12 +860,12 @@ export function getFuturePassesSync({
 			riseTimeMS = _minimizeSearch(crossElvCalculator, {
 				lowerBound: peakTimeMS,
 				tolerance: toleranceMS,
-				initialIncrement: -(initialStepMS / 10),
+				initialIncrement: -(initialStepMS / 4),
 			});
 			setTimeMS = _minimizeSearch(crossElvCalculator, {
 				lowerBound: peakTimeMS,
 				tolerance: toleranceMS,
-				initialIncrement: (initialStepMS / 10),
+				initialIncrement: (initialStepMS / 4),
 			});
 
 			pass = {

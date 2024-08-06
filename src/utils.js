@@ -196,7 +196,7 @@ export const _getObjLength = obj => Object.keys(obj).length;
  *  application in TLE pass prediction in order to avoid missing passes).
  *  - In the end xL and xU are brought closer to the found bound.
  */
-function bracketMinimum (bounds, f, x0, dx, xMin, xMax, maxIter) {
+function bracketMinimum (f, x0, dx) {
 	// If either size is unbounded (=infinite), Expand the guess
 	// range until we either bracket a minimum or until we reach the bounds:
 	let fU, fL, fMin, xU, bounded;
@@ -227,10 +227,11 @@ function bracketMinimum (bounds, f, x0, dx, xMin, xMax, maxIter) {
 
 	// Narrowing the bounds slightly
 	let xL = xU - (2 * dx);
+	if (x0 === (xL + dx)) {
+		xL = x0;
+	}
   
-	bounds[0] = xL;
-	bounds[1] = xU;
-	return bounds;
+	return [xL, xU];
 }
 
 /**
@@ -309,7 +310,7 @@ function goldenSectionMinimize (f, xL, xU, tol, maxIterations, status) {
  */
 export function _minimizeSearch (f, options, status) {
 	options = options || {};
-	const bounds = [0, 0];
+	let bounds = [0, 0];
 	let x0;
 	const tolerance = options.tolerance === undefined ? 1e-8 : options.tolerance;
 	const dx = options.initialIncrement === undefined ? 1 : options.initialIncrement;
@@ -328,22 +329,9 @@ export function _minimizeSearch (f, options, status) {
 		bounds[0] = xMin;
 		bounds[1] = xMax;
 	} else {
-		// Construct the best guess we can:
-		if (options.guess === undefined) {
-			if (xMin > -Infinity) {
-			x0 = xMax < Infinity ? 0.5 * (xMin + xMax) : xMin;
-			} else {
-			x0 = xMax < Infinity ? xMax : 0;
-			}
-		} else {
-			x0 = options.guess;
-		}
+		x0 = xMin > -Infinity ? xMin : 0;
 	
-		bracketMinimum(bounds, f, x0, dx, xMin, xMax, maxIterations);
-	
-		if (isNaN(bounds[0]) || isNaN(bounds[1])) {
-			return NaN;
-		}
+		bounds = bracketMinimum(f, x0, dx);
 	}
   
 	return goldenSectionMinimize(f, bounds[0], bounds[1], tolerance, maxIterations, status);
