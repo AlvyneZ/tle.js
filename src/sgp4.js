@@ -113,7 +113,6 @@ export function getAllCacheSizes() {
  *   // spacecraft velocity in km/s
  *   velocity: 7.675627442183371
  * }
- * TODO: default to 0,0.
  * TODO: return error instead of throwing?
  */
 export function getSatelliteInfo(
@@ -121,11 +120,10 @@ export function getSatelliteInfo(
 	rawTimestamp,
 	observerLat,
 	observerLng,
-	observerHeight
+	observerHeight = 0.0
 ) {
-	if ((observerLat === undefined) ||
-			(observerLng === undefined) || (observerHeight === undefined)) {
-		throw new Error('Observer Location details (lat, lng, height) are all required');
+	if ((observerLat === undefined) || (observerLng === undefined)) {
+		throw new Error('Observer Location details (lat, lng) are both required');
 	}
 
 	const timestamp = rawTimestamp || Date.now();
@@ -378,13 +376,12 @@ export function getLngLatAtEpoch(tle) {
 export function getVisibleSatellites({
 	observerLat,
 	observerLng,
-	observerHeight = 0,
+	observerHeight = 0.0,
 	tles = [],
 	elevationThreshold = 0,
 	timestampMS = Date.now()
 }) {
-	if ((observerLat === undefined) ||
-			(observerLng === undefined) || (observerHeight === undefined)) {
+	if ((observerLat === undefined) || (observerLng === undefined)) {
 		throw new Error('Observer Location details (lat, lng, height) are all required');
 	}
 
@@ -681,7 +678,7 @@ export function getGroundTracks({
 export function getGroundTracksSync({
 	tle,
 	stepMS = 1000,
-	optionalTimeMS = Date.now(), // TODO: change to startTimeMS for consistency
+	startTimeMS = Date.now(),
 	isLngLatFormat = true
 }) {
 	const parsedTLE = parseTLE(tle);
@@ -690,7 +687,7 @@ export function getGroundTracksSync({
 	const orbitTimeMS = getAverageOrbitTimeMS(tleArr);
 	const curOrbitStartMS = getLastAntemeridianCrossingTimeMS(
 		parsedTLE,
-		optionalTimeMS
+		startTimeMS
 	);
 
 	const foundCrossing = curOrbitStartMS !== -1;
@@ -699,7 +696,7 @@ export function getGroundTracksSync({
 
 		const partialGroundTrack = getOrbitTrackSync({
 			tle: parsedTLE,
-			startTimeMS: optionalTimeMS,
+			startTimeMS: startTimeMS,
 			stepMS: _MS_IN_A_MINUTE,
 			maxTimeMS: _MS_IN_A_DAY / 4
 		});
@@ -753,28 +750,26 @@ export function getSatBearing(tle, timeMS = Date.now()) {
 
 	const doesCrossAntemeridian = _crossesAntemeridian(latLon1[1], latLon2[1]);
 
+	let lonDiff = latLon2[1] - latLon1[1];
 	if (doesCrossAntemeridian) {
-		// TODO: fix
-		return {};
-		// return this.getSatBearing(tle, customTimeMS + 10000);
+		lonDiff += (lonDiff > 0) ? -360 : 360;
 	}
 
 	const lat1 = _degreesToRadians(latLon1[0]);
 	const lat2 = _degreesToRadians(latLon2[0]);
-	const lon1 = _degreesToRadians(latLon1[1]);
-	const lon2 = _degreesToRadians(latLon2[1]);
+	lonDiff = _degreesToRadians(lonDiff);
 
 	const NS = lat1 >= lat2 ? "S" : "N";
-	const EW = lon1 >= lon2 ? "W" : "E";
+	const EW = lonDiff <= 0 ? "W" : "E";
 
-	const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
+	const y = Math.sin(lonDiff) * Math.cos(lat2);
 	const x =
 		Math.cos(lat1) * Math.sin(lat2) -
-		Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
+		Math.sin(lat1) * Math.cos(lat2) * Math.cos(lonDiff);
 	const degrees = _radiansToDegrees(Math.atan2(y, x));
 
 	return {
-		degrees,
+		degrees: (degrees + 360) % 360,
 		compass: `${NS}${EW}`
 	};
 }
@@ -798,7 +793,7 @@ export function getSatBearing(tle, timeMS = Date.now()) {
 export function getFuturePassesSync({
 	observerLat,
 	observerLng,
-	observerHeight = 0,
+	observerHeight = 0.0,
 	tle,
 	startTimeMS = Date.now(),
 	toleranceMS = 1,
@@ -806,6 +801,9 @@ export function getFuturePassesSync({
 	daysCount = 1,
 	maxPassCount = Infinity
 }) {
+	if ((observerLat === undefined) || (observerLng === undefined)) {
+		throw new Error('Observer Location details (lat, lng, height) are all required');
+	}
 	const { tle: tleArr } = parseTLE(tle);
 	let curTimeMS = startTimeMS;
 	const maxTimeMS = startTimeMS + (daysCount * _MS_IN_A_DAY);
