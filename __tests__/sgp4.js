@@ -279,7 +279,7 @@ describe("getGroundTracksSync", () => {
 
 	test("2", async () => {
 		const timestamp = 1620583838732;
-		const result = await getGroundTracksSync({
+		const result = getGroundTracksSync({
 			tle: proxima2,
 			startTimeMS: timestamp
 		});
@@ -344,17 +344,13 @@ describe("getFuturePassesSync", () => {
 
 	test("2", async () => {
 		const timestamp = 1620583838732;
-		const result = await getGroundTracksSync({
-			tle: proxima2,
-			startTimeMS: timestamp
-		});
 		const passes = getFuturePassesSync({
 			observerLat: 34.439283990227125,
 			observerLng: -117.47561122364522,
 			observerHeight: 0,
 			tle: tleArr,
 			elevationThreshold: 10,
-			startTimeMS: 1620583838732,
+			startTimeMS: timestamp,
 			toleranceMS: 0.5,
 			daysCount: 3
 		});
@@ -394,14 +390,12 @@ describe("problematic TLES (geosync, decayed)", () => {
 	test("getLastAntemeridianCrossingTimeMS 2", () => {
 		const timestamp = 1620579956208;
 		const result = getLastAntemeridianCrossingTimeMS(proxima2, timestamp);
-		const expectedResult = -1;
 		expect((timestamp - result) / 1000 / 60).toBeCloseTo(72.50);
 	});
 
 	test("getLastAntemeridianCrossingTimeMS 3", () => {
 		const timestamp = 1620581856788;
 		const result = getLastAntemeridianCrossingTimeMS(proxima2, timestamp);
-		const expectedResult = -1;
 		expect((timestamp - result) / 1000 / 60).toBeCloseTo(8.976);
 	});
 
